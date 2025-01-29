@@ -6,9 +6,7 @@ RUN apt-get update && \
 
 ARG VERSION
 
-WORKDIR /opt
-
-RUN curl -sSL - https://github.com/loong64/ollama/releases/download/${VERSION}/ollama-linux-loong64.tgz | tar -xz -C /
+RUN curl -sSL - https://github.com/loong64/ollama/releases/download/${VERSION}/ollama-linux-loong64.tgz | tar -xz
 
 EXPOSE 11434
 ENV OLLAMA_HOST 0.0.0.0
