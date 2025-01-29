@@ -3,7 +3,7 @@ ARG GOLANG_VERSION=1.23
 FROM ghcr.io/loong64/golang:${GOLANG_VERSION}-trixie AS unified-builder
 
 RUN apt-get update && \
-    apt-get install -y ca-certificates ccache pigz patch wget && \
+    apt-get install -y ca-certificates ccache pigz && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 ARG APP_VERSION
