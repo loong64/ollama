@@ -1,0 +1,26 @@
+ARG GOLANG_VERSION=1.22.8
+
+FROM ghcr.io/loong64/golang:${GOLANG_VERSION}-trixie AS unified-builder
+ARG VERSION
+
+ARG WORKDIR /go/src/github.com/ollama/ollama
+RUN git clone --depth 1 --branch ${VERSION} https://github.com/ollama/ollama ${WORKDIR}
+
+ARG OLLAMA_SKIP_CUDA_GENERATE
+ARG OLLAMA_FAST_BUILD
+ENV GOARCH loong64
+ENV CGO_ENABLED 1
+
+WORKDIR ${WORKDIR}
+
+RUN --mount=type=cache,target=/root/.ccache \
+    export VERSION=$(git describe --tags --first-parent --abbrev=7 --long --dirty --always | sed -e "s/^v//g") && \
+    export GOFLAGS="'-ldflags=-w -s \"-X=github.com/ollama/ollama/version.Version=$VERSION\" \"-X=github.com/ollama/ollama/server.mode=release\"'" && \
+    curl -sSL - https://github.com/loong64/ollama/raw/refs/heads/main/patch_loong64.patch | patch -p1 && \
+    make -j $(nproc) dist
+
+RUN cd dist/linux-$GOARCH && \
+    tar -cf - . | pigz --best > ../ollama-linux-$GOARCH.tgz
+
+FROM scratch AS dist
+COPY --from=unified-builder /go/src/github.com/ollama/ollama/dist/ollama-linux-*.tgz /
