@@ -8,8 +8,8 @@ ARG VERSION
 
 RUN curl -L https://github.com/loong64/ollama/releases/download/${VERSION}/ollama-linux-loong64.tgz | tar -xz
 
+ENV OLLAMA_HOST=0.0.0.0:11434
 EXPOSE 11434
-ENV OLLAMA_HOST 0.0.0.0
 
 ENTRYPOINT ["/bin/ollama"]
 CMD ["serve"]

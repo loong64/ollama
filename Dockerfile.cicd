@@ -1,9 +1,9 @@
-ARG GOLANG_VERSION=1.23
+ARG GOVERSION=1.23.4
 
-FROM ghcr.io/loong64/golang:${GOLANG_VERSION}-trixie AS unified-builder
+FROM ghcr.io/loong64/golang:${GOVERSION}-trixie AS unified-builder
 
 RUN apt-get update && \
-    apt-get install -y ca-certificates ccache pigz && \
+    apt-get install -y ca-certificates ccache cmake pigz && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 ARG APP_VERSION
@@ -11,22 +11,30 @@ ARG APP_VERSION
 ARG WORKDIR=/go/src/github.com/ollama/ollama
 RUN git clone -b ${APP_VERSION} --depth=1 https://github.com/ollama/ollama ${WORKDIR}
 
-ARG OLLAMA_SKIP_CUDA_GENERATE
-ARG OLLAMA_FAST_BUILD
+ENV LDFLAGS=-s
+
+WORKDIR ${WORKDIR}
+
+RUN --mount=type=cache,target=/root/.ccache \
+    cmake --preset 'CPU' && \
+    cmake --build --parallel --preset 'CPU' && \
+    cmake --install build --component CPU --strip --parallel 8
+
 ENV GOARCH loong64
 ENV CGO_ENABLED 1
 
 ADD patch_loong64.patch /tmp/patch_loong64.patch
 
-WORKDIR ${WORKDIR}
-
-RUN --mount=type=cache,target=/root/.ccache \
+RUN --mount=type=cache,target=/root/.cache/go-build \
     export VERSION=$(git describe --tags --first-parent --abbrev=7 --long --dirty --always | sed -e "s/^v//g") && \
     export GOFLAGS="'-ldflags=-w -s \"-X=github.com/ollama/ollama/version.Version=$VERSION\" \"-X=github.com/ollama/ollama/server.mode=release\"'" && \
     git apply /tmp/patch_loong64.patch && \
-    make -j $(nproc) dist
+    go build -trimpath -buildmode=pie -o /bin/ollama .
 
-RUN cd dist/linux-$GOARCH && \
+RUN mkdir -p dist/linux-$GOARCH/bin && \
+    cp /bin/ollama dist/linux-$GOARCH/bin/ && \
+    cp -r dist/lib dist/linux-$GOARCH/ && \
+    cd dist/linux-$GOARCH && \
     tar -cf - . | pigz --best > ../ollama-linux-$GOARCH.tgz
 
 FROM ghcr.io/loong64/debian:trixie-slim

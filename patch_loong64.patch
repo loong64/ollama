@@ -1,44 +1,27 @@
-diff --git a/llama/llama.go b/llama/llama.go
-index 18790a9..d69cf12 100644
---- a/llama/llama.go
-+++ b/llama/llama.go
-@@ -45,6 +45,8 @@ package llama
- #cgo linux,arm64 LDFLAGS: -L${SRCDIR}/build/linux-arm64
- #cgo linux,arm64,sve CFLAGS: -march=armv8.6-a+sve
- #cgo linux,arm64,sve CXXFLAGS: -march=armv8.6-a+sve
-+#cgo linux,loong64 CFLAGS: -mlasx
-+#cgo linux,loong64 CXXFLAGS: -mlasx
- #cgo linux,cuda LDFLAGS: -lcuda -lcudart -lcublas -lcublasLt -lpthread -lrt -lresolv
- #cgo linux,rocm LDFLAGS: -lpthread -lrt -lresolv
- #cgo rocm CFLAGS: -DGGML_USE_CUDA -DGGML_USE_HIP -DGGML_CUDA_DMMV_X=32 -DGGML_CUDA_PEER_MAX_BATCH_SIZE=128 -DGGML_CUDA_MMV_Y=1 -DGGML_BUILD=1
-diff --git a/make/common-defs.make b/make/common-defs.make
-index 03504a6..9f30366 100644
---- a/make/common-defs.make
-+++ b/make/common-defs.make
-@@ -2,7 +2,7 @@
- # No rules are defined here so this is safe to include at the beginning of other makefiles
+diff --git a/ml/backend/ggml/ggml/src/ggml-cpu/cpu.go b/ml/backend/ggml/ggml/src/ggml-cpu/cpu.go
+index 895d093..4e18a6b 100644
+--- a/ml/backend/ggml/ggml/src/ggml-cpu/cpu.go
++++ b/ml/backend/ggml/ggml/src/ggml-cpu/cpu.go
+@@ -1,7 +1,7 @@
+ package cpu
  
- OS := $(shell uname -s)
--ARCH ?= $(subst aarch64,arm64,$(subst x86_64,amd64,$(shell uname -m)))
-+ARCH ?= $(subst aarch64,arm64,$(subst x86_64,amd64,$(subst loongarch64,loong64,$(shell uname -m))))
- ifneq (,$(findstring MINGW,$(OS))$(findstring MSYS,$(OS)))
- 	OS := windows
- 	ARCH := $(shell systeminfo 2>/dev/null | grep "System Type" | grep ARM64 > /dev/null && echo "arm64" || echo "amd64" )
-@@ -16,8 +16,8 @@ empty:=
- space:= $(empty) $(empty)
- uc = $(subst a,A,$(subst b,B,$(subst c,C,$(subst d,D,$(subst e,E,$(subst f,F,$(subst g,G,$(subst h,H,$(subst i,I,$(subst j,J,$(subst k,K,$(subst l,L,$(subst m,M,$(subst n,N,$(subst o,O,$(subst p,P,$(subst q,Q,$(subst r,R,$(subst s,S,$(subst t,T,$(subst u,U,$(subst v,V,$(subst w,W,$(subst x,X,$(subst y,Y,$(subst z,Z,$1))))))))))))))))))))))))))
+-// #cgo CFLAGS: -O3 -Wno-implicit-function-declaration
+-// #cgo CXXFLAGS: -std=c++17
++// #cgo CFLAGS: -O3 -Wno-implicit-function-declaration -march=native
++// #cgo CXXFLAGS: -std=c++17 -march=native
+ // #cgo CPPFLAGS: -I${SRCDIR}/amx -I${SRCDIR}/llamafile -I${SRCDIR}/.. -I${SRCDIR}/../../include
+ // #cgo CPPFLAGS: -DGGML_USE_LLAMAFILE
+ // #cgo linux CPPFLAGS: -D_GNU_SOURCE
+diff --git a/ml/backend/ggml/ggml/src/ggml.go b/ml/backend/ggml/ggml/src/ggml.go
+index 3920e37..826f8a7 100644
+--- a/ml/backend/ggml/ggml/src/ggml.go
++++ b/ml/backend/ggml/ggml/src/ggml.go
+@@ -1,6 +1,7 @@
+ package ggml
  
--export CGO_CFLAGS_ALLOW = -mfma|-mf16c
--export CGO_CXXFLAGS_ALLOW = -mfma|-mf16c
-+export CGO_CFLAGS_ALLOW = -mfma|-mf16c|-mlasx
-+export CGO_CXXFLAGS_ALLOW = -mfma|-mf16c|-mlasx
- export HIP_PLATFORM = amd
- export CGO_ENABLED=1
- 
-@@ -88,4 +88,4 @@ COMMON_HDRS := \
- 	$(wildcard ./llama/*.h) \
- 	$(wildcard ./llama/*.hpp)
- 
--OLLAMA_EXE=./ollama$(EXE_EXT)
-\ No newline at end of file
-+OLLAMA_EXE=./ollama$(EXE_EXT)
+-// #cgo CXXFLAGS: -std=c++17
++// #cgo CFLAGS: -march=native
++// #cgo CXXFLAGS: -std=c++17 -march=native
+ // #cgo CPPFLAGS: -DNDEBUG -DGGML_USE_CPU
+ // #cgo CPPFLAGS: -I${SRCDIR}/../include -I${SRCDIR}/ggml-cpu
+ // #cgo windows LDFLAGS: -lmsvcrt -static -static-libgcc -static-libstdc++
