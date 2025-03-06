@@ -73,7 +73,7 @@ jobs:
     steps:
       - name: Get Version
         run: |
-          echo "VERSION=${VERSION}"
+          echo "APP_VERSION=${APP_VERSION}"
 
       - uses: actions/checkout@v4
         with:
