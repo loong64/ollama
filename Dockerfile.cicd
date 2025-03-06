@@ -1,6 +1,6 @@
-ARG GOVERSION=1.23.4
+ARG GO_VERSION=1.24
 
-FROM ghcr.io/loong64/golang:${GOVERSION}-trixie AS unified-builder
+FROM ghcr.io/loong64/golang:${GO_VERSION}-trixie AS unified-builder
 
 RUN apt-get update && \
     apt-get install -y ca-certificates ccache cmake pigz && \

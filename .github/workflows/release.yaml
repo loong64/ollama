@@ -22,10 +22,13 @@ jobs:
         id: get-version
         run: |
           APP_VERSION=$(curl -s "https://api.github.com/repos/${{ env.REPO_NAME }}/releases/latest" | jq -r .tag_name)
-          if [ -z "${APP_VERSION}" ] || [ "${APP_VERSION}" == "null" ]; then
+          GO_VERSION=$(curl -sSL https://github.com/${{ env.REPO_NAME }}/raw/${APP_VERSION}/go.mod | awk '/^go/ { print $2 }')
+          if [ -z "${APP_VERSION}" ] || [ "${APP_VERSION}" == "null" ] || [ -z "${GO_VERSION}" ] || [ "${GO_VERSION}" == "null" ]; then
             echo "Failed to get version"
             exit 1
           fi
+
+          sed -i "s@ARG GO_VERSION=.*@ARG GO_VERSION=${GO_VERSION}@g" Dockerfile.cicd
           
           echo "APP_VERSION=${APP_VERSION}" >> $GITHUB_ENV
           echo "APP_VERSION=${APP_VERSION}" >> $GITHUB_OUTPUT
@@ -33,6 +36,7 @@ jobs:
           echo ""
           echo "========== Build Args =========="
           echo "APP_VERSION=${APP_VERSION}"
+          echo "GO_VERSION=${GO_VERSION}"
 
       - name: Check Release
         id: check-release
@@ -50,6 +54,7 @@ jobs:
           git commit -m "Release ${APP_VERSION}" || true
           git tag ${APP_VERSION} || true
           git push origin ${APP_VERSION}  || true
+          git push origin HEAD:main || true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
