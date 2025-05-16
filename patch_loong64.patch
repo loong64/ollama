@@ -13,7 +13,7 @@ index 895d093..4e18a6b 100644
  // #cgo CPPFLAGS: -DGGML_USE_LLAMAFILE
  // #cgo linux CPPFLAGS: -D_GNU_SOURCE
 diff --git a/ml/backend/ggml/ggml/src/ggml.go b/ml/backend/ggml/ggml/src/ggml.go
-index 3920e37..826f8a7 100644
+index 91f1f1a..47c850e 100644
 --- a/ml/backend/ggml/ggml/src/ggml.go
 +++ b/ml/backend/ggml/ggml/src/ggml.go
 @@ -1,6 +1,7 @@
@@ -24,4 +24,4 @@ index 3920e37..826f8a7 100644
 +// #cgo CXXFLAGS: -std=c++17 -march=native
  // #cgo CPPFLAGS: -DNDEBUG -DGGML_USE_CPU
  // #cgo CPPFLAGS: -I${SRCDIR}/../include -I${SRCDIR}/ggml-cpu
- // #cgo windows LDFLAGS: -lmsvcrt -static -static-libgcc -static-libstdc++
+ // #cgo windows CFLAGS: -Wno-dll-attribute-on-redeclaration
