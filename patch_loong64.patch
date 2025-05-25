@@ -1,5 +1,5 @@
 diff --git a/ml/backend/ggml/ggml/src/ggml-cpu/cpu.go b/ml/backend/ggml/ggml/src/ggml-cpu/cpu.go
-index 895d093..4e18a6b 100644
+index 895b7f6..08cb989 100644
 --- a/ml/backend/ggml/ggml/src/ggml-cpu/cpu.go
 +++ b/ml/backend/ggml/ggml/src/ggml-cpu/cpu.go
 @@ -1,7 +1,7 @@
@@ -10,7 +10,7 @@ index 895d093..4e18a6b 100644
 +// #cgo CFLAGS: -O3 -Wno-implicit-function-declaration -march=native
 +// #cgo CXXFLAGS: -std=c++17 -march=native
  // #cgo CPPFLAGS: -I${SRCDIR}/amx -I${SRCDIR}/llamafile -I${SRCDIR}/.. -I${SRCDIR}/../../include
- // #cgo CPPFLAGS: -DGGML_USE_LLAMAFILE
+ // #cgo CPPFLAGS: -DNDEBUG -DGGML_USE_LLAMAFILE
  // #cgo linux CPPFLAGS: -D_GNU_SOURCE
 diff --git a/ml/backend/ggml/ggml/src/ggml.go b/ml/backend/ggml/ggml/src/ggml.go
 index 91f1f1a..47c850e 100644
