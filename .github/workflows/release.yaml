@@ -13,10 +13,10 @@ jobs:
   check:
     runs-on: ubuntu-latest
     outputs:
+      APP_BUILD: ${{ steps.check-release.outputs.build }}
       APP_VERSION: ${{ steps.get-version.outputs.APP_VERSION }}
     steps:
       - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
 
       - name: Get Version
         id: get-version
@@ -42,6 +42,7 @@ jobs:
         id: check-release
         run: |
           gh release view ${APP_VERSION} -R ${{ github.repository }} >/dev/null 2>&1 || echo "create=1" >> $GITHUB_OUTPUT
+          gh release view ${APP_VERSION} -R ${{ github.repository }} | grep ${{ env.APP_NAME }}-linux-loong64.tgz >/dev/null 2>&1 || echo "build=1" >> $GITHUB_OUTPUT
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -68,32 +69,18 @@ jobs:
   build:
     runs-on: ubuntu-latest
     needs: check
+    if: needs.check.outputs.APP_BUILD == '1'
     env:
         APP_VERSION: ${{ needs.check.outputs.APP_VERSION }}
     steps:
-      - name: Get Version
-        run: |
-          echo "APP_VERSION=${APP_VERSION}"
-
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.APP_VERSION }}
 
-      - name: Check Release
-        id: create-binaries
-        run: |
-          gh release view ${{ env.APP_VERSION }} -R ${{ github.repository }} | grep ${{ env.APP_NAME }}-linux-loong64.tgz >/dev/null 2>&1 || echo "create=1" >> $GITHUB_OUTPUT
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - uses: docker/setup-qemu-action@v3
-        if : steps.create-binaries.outputs.create == '1'
-
       - uses: docker/setup-buildx-action@v3
-        if : steps.create-binaries.outputs.create == '1'
 
       - name: Login to GitHub Container Registry
-        if : steps.create-binaries.outputs.create == '1'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -101,19 +88,16 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/cache@v4
-        if : steps.create-binaries.outputs.create == '1'
         with:
           path: /tmp/.buildx-cache
           key: ${{ runner.os }}-${{ env.APP_NAME }}-${{ env.APP_VERSION }}
           restore-keys: ${{ runner.os }}-${{ env.APP_NAME }}-
 
       - name: Build Binaries
-        if : steps.create-binaries.outputs.create == '1'
         run: |
           docker buildx build --platform linux/loong64 --build-arg APP_VERSION=${{ env.APP_VERSION }} -t ${{ env.APP_NAME }}-static-loong64:${{ env.APP_VERSION }} -f Dockerfile.cicd --cache-from type=local,src=/tmp/.buildx-cache --cache-to type=local,dest=/tmp/.buildx-cache-new,mode=max . --load
 
       - name: Upgrade Release
-        if : steps.create-binaries.outputs.create == '1'
         run: |
           docker run --rm -v $(pwd)/dist:/dist ${{ env.APP_NAME }}-static-loong64:${{ env.APP_VERSION }}
           ls -al dist
@@ -122,7 +106,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push image
-        if : steps.create-binaries.outputs.create == '1'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -138,7 +121,6 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Move cache
-        if : always() && steps.create-binaries.outputs.create == '1'
         run: |
           rm -rf /tmp/.buildx-cache
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache
