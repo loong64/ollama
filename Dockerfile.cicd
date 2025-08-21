@@ -15,20 +15,20 @@ ENV LDFLAGS=-s
 
 WORKDIR ${WORKDIR}
 
+ADD loong64.patch /tmp/loong64.patch
+
 RUN --mount=type=cache,target=/root/.ccache \
+    git apply /tmp/loong64.patch && \
     cmake --preset 'CPU' && \
     cmake --build --parallel --preset 'CPU' && \
-    cmake --install build --component CPU --strip --parallel 8
+    cmake --install build --component CPU --strip --parallel 4
 
 ENV GOARCH loong64
 ENV CGO_ENABLED 1
 
-ADD patch_loong64.patch /tmp/patch_loong64.patch
-
 RUN --mount=type=cache,target=/root/.cache/go-build \
-    export VERSION=$(git describe --tags --first-parent --abbrev=7 --long --dirty --always | sed -e "s/^v//g") && \
+    export VERSION=$(git describe --tags --first-parent --abbrev=7 --long --always | sed -e "s/^v//g") && \
     export GOFLAGS="'-ldflags=-w -s \"-X=github.com/ollama/ollama/version.Version=$VERSION\" \"-X=github.com/ollama/ollama/server.mode=release\"'" && \
-    git apply /tmp/patch_loong64.patch && \
     go build -trimpath -buildmode=pie -o /bin/ollama .
 
 RUN mkdir -p dist/linux-$GOARCH/bin && \
