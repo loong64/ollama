@@ -16,7 +16,7 @@ jobs:
       APP_BUILD: ${{ steps.check-release.outputs.build }}
       APP_VERSION: ${{ steps.get-version.outputs.APP_VERSION }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Get Version
         id: get-version
@@ -73,7 +73,7 @@ jobs:
     env:
         APP_VERSION: ${{ needs.check.outputs.APP_VERSION }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: ${{ env.APP_VERSION }}
 
