@@ -17,8 +17,11 @@ WORKDIR ${WORKDIR}
 
 ADD loong64.patch /tmp/loong64.patch
 
+RUN git apply /tmp/loong64.patch && \
+    mkdir -p ml/backend/ggml/ggml/src/ggml-cpu/arch/loongarch && \
+    wget -O ml/backend/ggml/ggml/src/ggml-cpu/arch/loongarch/quants.c https://github.com/ggml-org/llama.cpp/raw/refs/heads/master/ggml/src/ggml-cpu/arch/loongarch/quants.c
+
 RUN --mount=type=cache,target=/root/.ccache \
-    git apply /tmp/loong64.patch && \
     cmake --preset 'CPU' && \
     cmake --build --parallel --preset 'CPU' && \
     cmake --install build --component CPU --strip --parallel 4
