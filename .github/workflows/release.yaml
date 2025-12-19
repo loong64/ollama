@@ -8,10 +8,13 @@ on:
 env:
   APP_NAME: ollama
   REPO_NAME: ollama/ollama
+  CGO_CFLAGS: '-O3'
+  CGO_CXXFLAGS: '-O3'
 
 jobs:
   check:
     runs-on: ubuntu-latest
+    environment: release
     outputs:
       APP_BUILD: ${{ steps.check-release.outputs.build }}
       APP_VERSION: ${{ steps.get-version.outputs.APP_VERSION }}
@@ -28,8 +31,6 @@ jobs:
             exit 1
           fi
 
-          sed -i "s@ARG GO_VERSION=.*@ARG GO_VERSION=${GO_VERSION}@g" Dockerfile.cicd
-          
           echo "APP_VERSION=${APP_VERSION}" >> $GITHUB_ENV
           echo "APP_VERSION=${APP_VERSION}" >> $GITHUB_OUTPUT
 
@@ -59,68 +60,240 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create Release
-        if : steps.check-release.outputs.create == '1'
-        run: |
-          gh release create ${APP_VERSION} -R ${{ github.repository }} --title ${APP_VERSION} --notes "**Full Changelog**: [${APP_VERSION}](https://github.com/${{ env.REPO_NAME }}/releases/tag/${APP_VERSION})"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  build:
+  setup-environment:
     runs-on: ubuntu-latest
+    environment: release
     needs: check
     if: needs.check.outputs.APP_BUILD == '1'
     env:
         APP_VERSION: ${{ needs.check.outputs.APP_VERSION }}
+    outputs:
+      GOFLAGS: ${{ steps.goflags.outputs.GOFLAGS }}
+      VERSION: ${{ steps.goflags.outputs.VERSION }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set environment
+        id: goflags
+        run: |
+          GITHUB_REF_NAME=${{ env.APP_VERSION }}
+          echo GOFLAGS="'-ldflags=-w -s \"-X=github.com/ollama/ollama/version.Version=${GITHUB_REF_NAME#v}\" \"-X=github.com/ollama/ollama/server.mode=release\"'" | tee -a $GITHUB_OUTPUT
+          echo VERSION="${GITHUB_REF_NAME#v}" | tee -a $GITHUB_OUTPUT
+
+  linux-build:
+    strategy:
+      matrix:
+        include:
+          - os: linux
+            arch: loong64
+            target: archive
+    runs-on: ubuntu-latest
+    environment: release
+    needs:
+      - setup-environment
+    env:
+        REPO_TAG: v${{ needs.setup-environment.outputs.VERSION }}
+        VERSION: ${{ needs.setup-environment.outputs.VERSION }}
+        GOFLAGS: ${{ needs.setup-environment.outputs.GOFLAGS }}
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ env.APP_VERSION }}
+          repository: ${{ env.REPO_NAME }}
+          ref: ${{ env.REPO_TAG }}
+
+      - name: Prepare
+        run: |
+          wget -qO - https://github.com/${{ github.repository }}/raw/refs/heads/main/loong64.patch | git apply
+          make -f Makefile.sync clean checkout apply-patches sync
+          rm -f Dockerfile
+          wget https://github.com/${{ github.repository }}/raw/refs/heads/main/Dockerfile
 
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ matrix.os }}/${{ matrix.arch }}
+          target: ${{ matrix.target }}
+          build-args: |
+            GOFLAGS=${{ env.GOFLAGS }}
+            CGO_CFLAGS=${{ env.CGO_CFLAGS }}
+            CGO_CXXFLAGS=${{ env.CGO_CXXFLAGS }}
+          outputs: type=local,dest=dist/${{ matrix.os }}-${{ matrix.arch }}
+          cache-from: type=registry,ref=${{ vars.DOCKER_REPO }}:latest
+          cache-to: type=inline
+      - run: |
+          for COMPONENT in bin/* lib/ollama/*; do
+            case "$COMPONENT" in
+              bin/ollama)                echo $COMPONENT >>ollama-${{ matrix.os }}-${{ matrix.arch }}.tar.in ;;
+              lib/ollama/*.so*)          echo $COMPONENT >>ollama-${{ matrix.os }}-${{ matrix.arch }}.tar.in ;;
+              lib/ollama/cuda_v*)        echo $COMPONENT >>ollama-${{ matrix.os }}-${{ matrix.arch }}.tar.in ;;
+              lib/ollama/vulkan*)        echo $COMPONENT >>ollama-${{ matrix.os }}-${{ matrix.arch }}.tar.in ;;
+              lib/ollama/cuda_jetpack5)  echo $COMPONENT >>ollama-${{ matrix.os }}-${{ matrix.arch }}-jetpack5.tar.in ;;
+              lib/ollama/cuda_jetpack6)  echo $COMPONENT >>ollama-${{ matrix.os }}-${{ matrix.arch }}-jetpack6.tar.in ;;
+              lib/ollama/rocm)           echo $COMPONENT >>ollama-${{ matrix.os }}-${{ matrix.arch }}-rocm.tar.in ;;
+            esac
+          done
+        working-directory: dist/${{ matrix.os }}-${{ matrix.arch }}
+      - run: |
+          echo "Manifests"
+          for ARCHIVE in dist/${{ matrix.os }}-${{ matrix.arch }}/*.tar.in ; do
+            echo $ARCHIVE
+            cat $ARCHIVE
+          done
+      - run: |
+          for ARCHIVE in dist/${{ matrix.os }}-${{ matrix.arch }}/*.tar.in; do
+            tar c -C dist/${{ matrix.os }}-${{ matrix.arch }} -T $ARCHIVE --owner 0 --group 0 | pigz -9vc >$(basename ${ARCHIVE//.*/}.tgz);
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bundles-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.target }}
+          path: |
+            *.tgz
 
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
+  docker-build-push:
+    strategy:
+      matrix:
+        include:
+          - os: linux
+            arch: loong64
+            build-args: |
+              CGO_CFLAGS
+              CGO_CXXFLAGS
+              GOFLAGS
+
+    runs-on: ubuntu-latest
+    environment: release
+    needs: setup-environment
+    env:
+      REPO_TAG: v${{ needs.setup-environment.outputs.VERSION }}
+      GOFLAGS: ${{ needs.setup-environment.outputs.GOFLAGS }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          repository: ${{ env.REPO_NAME }}
+          ref: ${{ env.REPO_TAG }}
+
+      - name: Prepare
+        run: |
+          wget -qO - https://github.com/${{ github.repository }}/raw/refs/heads/main/loong64.patch | git apply
+          make -f Makefile.sync clean checkout apply-patches sync
+          rm -f Dockerfile
+          wget https://github.com/${{ github.repository }}/raw/refs/heads/main/Dockerfile
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: actions/cache@v4
-        with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-${{ env.APP_NAME }}-${{ env.APP_VERSION }}
-          restore-keys: ${{ runner.os }}-${{ env.APP_NAME }}-
-
-      - name: Build Binaries
-        run: |
-          docker buildx build --platform linux/loong64 --build-arg APP_VERSION=${{ env.APP_VERSION }} -t ${{ env.APP_NAME }}-static-loong64:${{ env.APP_VERSION }} -f Dockerfile.cicd --cache-from type=local,src=/tmp/.buildx-cache --cache-to type=local,dest=/tmp/.buildx-cache-new,mode=max . --load
-
-      - name: Upgrade Release
-        run: |
-          docker run --rm -v $(pwd)/dist:/dist ${{ env.APP_NAME }}-static-loong64:${{ env.APP_VERSION }}
-          ls -al dist
-          gh release upload ${{ env.APP_VERSION }} -R ${{ github.repository }} dist/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push image
+      - id: build-push
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/loong64
-          push: true
-          build-args: |
-            VERSION=${{ env.APP_VERSION }}
-          tags: |
-            ghcr.io/${{ github.repository_owner }}/${{ env.APP_NAME }}:latest
-            ghcr.io/${{ github.repository_owner }}/${{ env.APP_NAME }}:${{ env.APP_VERSION }}
-          outputs: type=image,oci-mediatypes=true,compression=zstd,compression-level=3,force-compression=true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          platforms: ${{ matrix.os }}/${{ matrix.arch }}
+          build-args: ${{ matrix.build-args }}
+          outputs: type=image,name=${{ vars.DOCKER_REPO }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=registry,ref=${{ vars.DOCKER_REPO }}:latest
+          cache-to: type=inline
+      - run: |
+          mkdir -p ${{ matrix.os }}-${{ matrix.arch }}
+          echo "${{ steps.build-push.outputs.digest }}" >${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.suffix }}.txt
+        working-directory: ${{ runner.temp }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.suffix }}
+          path: |
+            ${{ runner.temp }}/${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.suffix }}.txt
 
-      - name: Move cache
+  docker-merge-push:
+    strategy:
+      matrix:
+        suffix: ['']
+    runs-on: linux
+    environment: release
+    needs: [setup-environment, docker-build-push]
+    env:
+      version: v${{ needs.setup-environment.outputs.VERSION }}
+    steps:
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: metadata
+        uses: docker/metadata-action@v4
+        with:
+          flavor: |
+            latest=false
+            suffix=${{ matrix.suffix }}
+          images: |
+            ${{ vars.DOCKER_REPO }}
+          tags: |
+            type=raw,value=${{ env.version }}
+            type=raw,value=latest
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: digest-*
+          path: ${{ runner.temp }}
+          merge-multiple: true
+      - run: |
+          docker buildx imagetools create $(echo '${{ steps.metadata.outputs.json }}' | jq -cr '.tags | map("-t", .) | join(" ")') $(cat *-${{ matrix.suffix }}.txt | xargs printf '${{ vars.DOCKER_REPO }}@%s ')
+          docker buildx imagetools inspect ${{ vars.DOCKER_REPO }}:${{ steps.metadata.outputs.version }}
+        working-directory: ${{ runner.temp }}
+
+  # Final release process
+  release:
+    runs-on: ubuntu-latest
+    environment: release
+    needs: [setup-environment, linux-build]
+    permissions:
+      contents: write
+    env:
+      REPO_TAG: v${{ needs.setup-environment.outputs.VERSION }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: bundles-*
+          path: dist
+          merge-multiple: true
+      - name: Log dist contents
         run: |
-          rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+          ls -l dist/
+      - name: Generate checksum file
+        run: find . -type f -not -name 'sha256sum.txt' | xargs sha256sum | tee sha256sum.txt
+        working-directory: dist
+      - name: Create or update Release for tag
+        run: |
+          GITHUB_REF_NAME=${{ env.REPO_TAG }}
+          RELEASE_VERSION="$(echo ${GITHUB_REF_NAME} | cut -f1 -d-)"
+          echo "Looking for existing release for ${RELEASE_VERSION}"
+          OLD_TAG=$(gh release ls --json name,tagName | jq -r ".[] | select(.name == \"${RELEASE_VERSION}\") | .tagName")
+          if [ -n "$OLD_TAG" ]; then
+            echo "Updating release ${RELEASE_VERSION} to point to new tag ${GITHUB_REF_NAME}"
+            gh release edit ${OLD_TAG} --tag ${GITHUB_REF_NAME}
+          else
+            echo "Creating new release ${RELEASE_VERSION} pointing to tag ${GITHUB_REF_NAME}"
+            gh release create ${GITHUB_REF_NAME} \
+              --title ${RELEASE_VERSION} \
+              --draft \
+              --generate-notes \
+              --prerelease
+          fi
+      - name: Upload release artifacts
+        run: |
+          GITHUB_REF_NAME=${{ env.REPO_TAG }}
+          pids=()
+          for payload in dist/*.txt dist/*.zip dist/*.tgz dist/*.exe dist/*.dmg ; do
+            echo "Uploading $payload"
+            gh release upload ${GITHUB_REF_NAME} $payload --clobber &
+            pids[$!]=$!
+            sleep 1
+          done
+          echo "Waiting for uploads to complete"
+          for pid in "${pids[*]}"; do
+            wait $pid
+          done
+          echo "done"
