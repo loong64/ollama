@@ -102,8 +102,9 @@ jobs:
 
       - name: Prepare
         run: |
-          wget -qO - https://github.com/${{ github.repository }}/raw/refs/heads/main/loong64.patch | git apply
+          wget -qO - https://github.com/${{ github.repository }}/raw/refs/heads/main/ggml-rsync-filter-loong64.patch | git apply
           make -f Makefile.sync clean checkout apply-patches sync
+          wget -qO - https://github.com/${{ github.repository }}/raw/refs/heads/main/ggml-cpu-all-variants-loong64.patch | git apply
           rm -f Dockerfile
           wget https://github.com/${{ github.repository }}/raw/refs/heads/main/Dockerfile
 
@@ -175,8 +176,9 @@ jobs:
 
       - name: Prepare
         run: |
-          wget -qO - https://github.com/${{ github.repository }}/raw/refs/heads/main/loong64.patch | git apply
+          wget -qO - https://github.com/${{ github.repository }}/raw/refs/heads/main/ggml-rsync-filter-loong64.patch | git apply
           make -f Makefile.sync clean checkout apply-patches sync
+          wget -qO - https://github.com/${{ github.repository }}/raw/refs/heads/main/ggml-cpu-all-variants-loong64.patch | git apply
           rm -f Dockerfile
           wget https://github.com/${{ github.repository }}/raw/refs/heads/main/Dockerfile
 
@@ -210,7 +212,7 @@ jobs:
     strategy:
       matrix:
         suffix: ['']
-    runs-on: linux
+    runs-on: ubuntu-latest
     environment: release
     needs: [setup-environment, docker-build-push]
     env:
@@ -286,7 +288,8 @@ jobs:
         run: |
           GITHUB_REF_NAME=${{ env.REPO_TAG }}
           pids=()
-          for payload in dist/*.txt dist/*.zip dist/*.tgz dist/*.exe dist/*.dmg ; do
+          # for payload in dist/*.txt dist/*.zip dist/*.tgz dist/*.exe dist/*.dmg ; do
+          for payload in dist/*.txt dist/*.zip dist/*.tgz ; do
             echo "Uploading $payload"
             gh release upload ${GITHUB_REF_NAME} $payload --clobber &
             pids[$!]=$!
