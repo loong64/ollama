@@ -104,7 +104,7 @@ jobs:
         run: |
           wget -qO - https://github.com/${{ github.repository }}/raw/refs/heads/main/ggml-rsync-filter-loong64.patch | git apply
           make -f Makefile.sync clean checkout apply-patches sync
-          wget -qO - https://github.com/${{ github.repository }}/raw/refs/heads/main/ggml-cpu-all-variants-loong64.patch | git apply
+          wget -qO - https://github.com/${{ github.repository }}/raw/refs/heads/main/loong64.patch | git apply
           rm -f Dockerfile
           wget https://github.com/${{ github.repository }}/raw/refs/heads/main/Dockerfile
 
@@ -178,7 +178,7 @@ jobs:
         run: |
           wget -qO - https://github.com/${{ github.repository }}/raw/refs/heads/main/ggml-rsync-filter-loong64.patch | git apply
           make -f Makefile.sync clean checkout apply-patches sync
-          wget -qO - https://github.com/${{ github.repository }}/raw/refs/heads/main/ggml-cpu-all-variants-loong64.patch | git apply
+          wget -qO - https://github.com/${{ github.repository }}/raw/refs/heads/main/loong64.patch | git apply
           rm -f Dockerfile
           wget https://github.com/${{ github.repository }}/raw/refs/heads/main/Dockerfile
 

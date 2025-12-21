@@ -37,7 +37,7 @@ ARG GOFLAGS="'-ldflags=-w -s'"
 ENV CGO_ENABLED=1
 ARG CGO_CFLAGS
 ARG CGO_CXXFLAGS
-ENV CGO_LDFLAGS="-Wl,-rpath,/usr/lib/ollama -lggml-cpu-loongarch64 -lggml-base"
+ENV CGO_LDFLAGS="-Wl,-rpath,/usr/lib/ollama -lggml-cpu -lggml-base"
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=from=cpu,source=dist/lib/ollama,target=/usr/local/lib \
     go build -trimpath -buildmode=pie -o /bin/ollama .
