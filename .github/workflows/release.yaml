@@ -280,9 +280,7 @@ jobs:
             echo "Creating new release ${RELEASE_VERSION} pointing to tag ${GITHUB_REF_NAME}"
             gh release create ${GITHUB_REF_NAME} \
               --title ${RELEASE_VERSION} \
-              --draft \
-              --generate-notes \
-              --prerelease
+              --generate-notes
           fi
       - name: Upload release artifacts
         run: |
