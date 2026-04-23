@@ -6,6 +6,7 @@ FROM --platform=linux/loong64 ghcr.io/loong64/anolis:23 AS base-loong64
 # install anolis-epao-release for ccache
 RUN yum install -y dnf-plugins-core anolis-epao-release \
     && curl -fsSLo /etc/yum.repos.d/anolis-crb.repo https://github.com/loong64/container-images/raw/805ba27783e72d199ce5c8d7d75b7e1119b41e0b/Containerfiles/23/anolis-crb.repo \
+    && curl -fsSLo /etc/yum.repos.d/AnolisOS-Devel.repo https://github.com/Loongson-Cloud-Community/docker-library/raw/39dd347e48f476ade13d851188848cfc7f4034f8/openanolis/anolisos/23.4/AnolisOS-Devel.repo \
     && dnf config-manager --set-enabled crb \
     && dnf install -y clang ccache
 ENV CC=clang CXX=clang++
