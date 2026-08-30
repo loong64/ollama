@@ -3,8 +3,8 @@ ARG CMAKEVERSION=3.31.2
 ARG NINJAVERSION=1.12.1
 
 FROM --platform=linux/loong64 ghcr.io/loong64/anolis:23 AS base-loong64
-# install anolis-epao-release for ccache
-RUN yum install -y dnf-plugins-core anolis-epao-release \
+# install anolis-crb for ccache
+RUN yum install -y dnf-plugins-core \
     && curl -fsSLo /etc/yum.repos.d/anolis-crb.repo https://github.com/loong64/container-images/raw/805ba27783e72d199ce5c8d7d75b7e1119b41e0b/Containerfiles/23/anolis-crb.repo \
     && curl -fsSLo /etc/yum.repos.d/AnolisOS-Devel.repo https://github.com/Loongson-Cloud-Community/docker-library/raw/39dd347e48f476ade13d851188848cfc7f4034f8/openanolis/anolisos/23.4/AnolisOS-Devel.repo \
     && dnf config-manager --set-enabled crb \
@@ -31,7 +31,7 @@ RUN dnf install -y gcc-toolset-14-gcc gcc-toolset-14-gcc-c++
 ENV PATH=/opt/rh/gcc-toolset-14/root/usr/bin:$PATH
 
 #
-# llama-server stages — rebuild when LLAMA_CPP_VERSION, llama/server/, or llama/compat/ changes.
+# llama-server stages — rebuild when LLAMA_CPP_VERSION, llama/server/, llama/compat/, or cmake/ changes.
 #
 # CPU stage: llama-server + ggml-base + ggml-cpu variants → lib/ollama/
 # GPU stages: GPU backend .so only → lib/ollama/<variant>/
@@ -41,6 +41,7 @@ FROM cpu-deps AS llama-server-cpu
 COPY LLAMA_CPP_VERSION .
 COPY llama/server llama/server
 COPY llama/compat llama/compat
+COPY cmake cmake
 RUN --mount=type=cache,target=/root/.ccache \
     cmake -S llama/server --preset cpu \
         && cmake --build build/llama-server-cpu -- -l $(nproc) \
@@ -84,7 +85,7 @@ COPY --from=build /bin/ollama /bin/ollama
 #
 
 FROM --platform=linux/loong64 scratch AS loong64
-COPY --from=llama-server-cpu dist/lib/ollama /lib/ollama/
+COPY --from=llama-server-cpu      dist/lib/ollama /lib/ollama/
 
 FROM --platform=linux/loong64 scratch AS loong64-archive
 COPY --from=loong64 /lib/ollama /lib/ollama/
