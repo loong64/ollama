@@ -41,6 +41,7 @@ FROM cpu-deps AS llama-server-cpu
 COPY LLAMA_CPP_VERSION .
 COPY llama/server llama/server
 COPY llama/compat llama/compat
+COPY llama/clef llama/clef
 COPY cmake cmake
 RUN --mount=type=cache,target=/root/.ccache \
     cmake -S llama/server --preset cpu \
@@ -76,9 +77,15 @@ ENV CGO_CFLAGS="${CGO_CFLAGS}"
 ENV CGO_CXXFLAGS="${CGO_CXXFLAGS}"
 RUN --mount=type=cache,target=/root/.cache/go-build \
     go build -trimpath -buildmode=pie -o /bin/ollama .
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    cmake -S . -B build/go-license \
+        -DOLLAMA_LLAMA_BACKENDS= \
+        -DOLLAMA_MLX_BACKENDS= \
+    && cmake --build build/go-license --target ollama-go-license
 
 FROM scratch AS publish-go
 COPY --from=build /bin/ollama /bin/ollama
+COPY --from=build /go/src/github.com/ollama/ollama/build/go-license/lib/ollama/GO_LICENSE /lib/ollama/GO_LICENSE
 
 #
 # Assembly stages — combine llama-server variants + GPU runtime libs
@@ -92,9 +99,11 @@ COPY --from=loong64 /lib/ollama /lib/ollama/
 
 FROM ${TARGETARCH}-archive AS archive
 COPY --from=build /bin/ollama /bin/ollama
+COPY --from=build /go/src/github.com/ollama/ollama/build/go-license/lib/ollama/GO_LICENSE /lib/ollama/GO_LICENSE
 
 FROM ${FLAVOR} AS image-archive
 COPY --from=build /bin/ollama /bin/ollama
+COPY --from=build /go/src/github.com/ollama/ollama/build/go-license/lib/ollama/GO_LICENSE /lib/ollama/GO_LICENSE
 
 FROM ghcr.io/loong64/debian:trixie-slim
 RUN apt-get update \
