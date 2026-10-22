@@ -19,7 +19,7 @@ jobs:
       APP_BUILD: ${{ steps.check-release.outputs.build }}
       APP_VERSION: ${{ steps.get-version.outputs.APP_VERSION }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Get Version
         id: get-version
@@ -58,7 +58,7 @@ jobs:
       VERSION: ${{ steps.goflags.outputs.VERSION }}
       vendorsha: ${{ steps.goflags.outputs.vendorsha }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           repository: ${{ env.REPO_NAME }}
           ref: ${{ env.APP_VERSION }}
@@ -83,7 +83,7 @@ jobs:
       REPO_TAG: v${{ needs.setup-environment.outputs.VERSION }}
       GOFLAGS: ${{ needs.setup-environment.outputs.GOFLAGS }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           repository: ${{ env.REPO_NAME }}
           ref: ${{ env.REPO_TAG }}
@@ -141,7 +141,7 @@ jobs:
       REPO_TAG: v${{ needs.setup-environment.outputs.VERSION }}
       GOFLAGS: ${{ needs.setup-environment.outputs.GOFLAGS }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           repository: ${{ env.REPO_NAME }}
           ref: ${{ env.REPO_TAG }}
@@ -189,9 +189,6 @@ jobs:
           build-args: ${{ matrix.build-args }}
           outputs: type=local,dest=dist/${{ matrix.os }}-${{ matrix.arch }}
           cache-from: ${{ matrix.cache-from }}
-      - name: Deduplicate CUDA libraries
-        run: |
-          ./scripts/deduplicate_cuda_libs.sh dist/${{ matrix.os }}-${{ matrix.arch }}
       - name: Verify Linux build payloads
         shell: bash
         run: |
@@ -213,6 +210,7 @@ jobs:
               lib/ollama/vulkan*)        echo $COMPONENT >>ollama-${{ matrix.os }}-${{ matrix.arch }}.tar.in ;;
               lib/ollama/mlx*)           echo $COMPONENT >>ollama-${{ matrix.os }}-${{ matrix.arch }}-mlx.tar.in ;;
               lib/ollama/include*)       echo $COMPONENT >>ollama-${{ matrix.os }}-${{ matrix.arch }}-mlx.tar.in ;;
+              lib/ollama/*_LICENSE|lib/ollama/*_NOTICE) echo $COMPONENT >>ollama-${{ matrix.os }}-${{ matrix.arch }}.tar.in ;;
               lib/ollama/cuda_jetpack5)  echo $COMPONENT >>ollama-${{ matrix.os }}-${{ matrix.arch }}-jetpack5.tar.in ;;
               lib/ollama/cuda_jetpack6)  echo $COMPONENT >>ollama-${{ matrix.os }}-${{ matrix.arch }}-jetpack6.tar.in ;;
               lib/ollama/rocm_v*)        echo $COMPONENT >>ollama-${{ matrix.os }}-${{ matrix.arch }}-rocm.tar.in ;;
@@ -283,7 +281,7 @@ jobs:
       REPO_TAG: v${{ needs.setup-environment.outputs.VERSION }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
         with:
           pattern: bundles-*
